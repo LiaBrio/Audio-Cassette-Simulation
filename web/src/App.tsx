@@ -7,7 +7,7 @@ import LanguageSwitcher from './components/LanguageSwitcher'
 import InfoSections from './components/InfoSections'
 import StaticPage from './components/StaticPage'
 import { TAPE_PRESETS } from './presets'
-import { convertWithTape, getFFmpeg } from './lib/ffmpeg'
+import { convertWithTape, getFFmpeg, resetFFmpeg } from './lib/ffmpeg'
 import { applySeo } from './lib/seo'
 
 type EngineState = 'loading' | 'ready' | 'error'
@@ -52,6 +52,15 @@ export default function App() {
       .then(() => setEngine('ready'))
       .catch(() => setEngine('error'))
   }, [])
+
+  // 引擎加载失败时（多为 CDN 网络问题）允许原地重试，无需刷新页面
+  const reloadEngine = () => {
+    setEngine('loading')
+    resetFFmpeg()
+    getFFmpeg()
+      .then(() => setEngine('ready'))
+      .catch(() => setEngine('error'))
+  }
 
   // 选中文件变化时维护原始音频的 object URL
   useEffect(() => {
@@ -128,7 +137,9 @@ export default function App() {
       setTimeout(() => resultRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
     } catch (err) {
       console.error(err)
-      setError(t('convert.failed'))
+      // 带上 ffmpeg 的真实报错，便于用户判断是文件问题还是内存/网络问题
+      const reason = err instanceof Error ? err.message.trim() : ''
+      setError(reason ? t('convert.failedReason', { reason }) : t('convert.failed'))
       setConvertState('error')
     }
   }
@@ -229,7 +240,14 @@ export default function App() {
         <div className="engine-status" data-state={engine}>
           {engine === 'loading' && t('engine.loading')}
           {engine === 'ready' && t('engine.ready')}
-          {engine === 'error' && t('engine.error')}
+          {engine === 'error' && (
+            <>
+              {t('engine.error')}
+              <button type="button" className="engine-retry" onClick={reloadEngine}>
+                {t('engine.retry')}
+              </button>
+            </>
+          )}
         </div>
       </header>
 

@@ -7,6 +7,7 @@ export default {
     loading: '⏳ 音频引擎加载中…（首次约 30 MB，请稍候）',
     ready: '● 音频引擎就绪',
     error: '⚠ 引擎加载失败，请检查网络后刷新页面',
+    retry: '↻ 重试',
   },
   steps: {
     upload: '上传音频',
@@ -32,6 +33,7 @@ export default {
     converting: '转换中… {{pct}}%',
     hint: '请先在上方上传一个音频文件',
     failed: '转换失败，请重试',
+    failedReason: '转换失败：{{reason}}',
   },
   player: {
     listening: '正在试听',

@@ -158,6 +158,22 @@ body {
   border-color: rgba(224, 85, 69, 0.4);
 }
 
+.engine-retry {
+  margin-left: 10px;
+  padding: 2px 10px;
+  font-family: inherit;
+  font-size: 11px;
+  color: inherit;
+  background: transparent;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.engine-retry:hover {
+  background: rgba(224, 85, 69, 0.12);
+}
+
 /* ---------- Steps ---------- */
 .step {
   margin-bottom: 48px;

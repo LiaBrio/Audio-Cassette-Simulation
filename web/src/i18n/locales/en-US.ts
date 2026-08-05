@@ -7,6 +7,7 @@ export default {
     loading: '⏳ Loading audio engine… (~30 MB on first visit)',
     ready: '● Audio engine ready',
     error: '⚠ Engine failed to load. Check your network and refresh.',
+    retry: '↻ Retry',
   },
   steps: {
     upload: 'Upload Audio',
@@ -32,6 +33,7 @@ export default {
     converting: 'Converting… {{pct}}%',
     hint: 'Please upload an audio file above first',
     failed: 'Conversion failed, please try again',
+    failedReason: 'Conversion failed: {{reason}}',
   },
   player: {
     listening: 'Now listening',
