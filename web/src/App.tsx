@@ -7,7 +7,7 @@ import LanguageSwitcher from './components/LanguageSwitcher'
 import InfoSections from './components/InfoSections'
 import StaticPage from './components/StaticPage'
 import { TAPE_PRESETS } from './presets'
-import { convertWithTape, getFFmpeg, resetFFmpeg } from './lib/ffmpeg'
+import { ConvertError, convertWithTape, getFFmpeg, resetFFmpeg } from './lib/ffmpeg'
 import { applySeo } from './lib/seo'
 
 type EngineState = 'loading' | 'ready' | 'error'
@@ -131,15 +131,19 @@ export default function App() {
     setError('')
     setResult(null)
     try {
-      const { blob, url } = await convertWithTape(file, preset.filterComplex, setProgress)
+            const { blob, url } = await convertWithTape(file, preset.filterComplex, setProgress)
       setResult({ blob, url, tapeId: preset.id })
       setConvertState('done')
       setTimeout(() => resultRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
     } catch (err) {
       console.error(err)
-      // 带上 ffmpeg 的真实报错，便于用户判断是文件问题还是内存/网络问题
-      const reason = err instanceof Error ? err.message.trim() : ''
-      setError(reason ? t('convert.failedReason', { reason }) : t('convert.failed'))
+      // 文件本身数据不完整时给可操作建议，其余情况带上 ffmpeg 原文便于定位
+      if (err instanceof ConvertError && err.code === 'incomplete-file') {
+        setError(t('convert.failedIncomplete', err.params))
+      } else {
+        const reason = err instanceof Error ? err.message.trim() : ''
+        setError(reason ? t('convert.failedReason', { reason }) : t('convert.failed'))
+      }
       setConvertState('error')
     }
   }

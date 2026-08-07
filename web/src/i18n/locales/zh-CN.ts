@@ -34,6 +34,8 @@ export default {
     hint: '请先在上方上传一个音频文件',
     failed: '转换失败，请重试',
     failedReason: '转换失败：{{reason}}',
+    failedIncomplete:
+      '这个文件的音频数据不完整：标签声称音频从第 {{start}} 字节开始，但文件只有 {{size}} 字节。请重新下载或重新导出该音频后再试。',
   },
   player: {
     listening: '正在试听',

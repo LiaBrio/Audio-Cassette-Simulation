@@ -93,14 +93,43 @@ export interface ConvertResult {
   url: string
 }
 
+/** 带诊断结论的转换异常，code 供 UI 映射成可操作的提示 */
+export class ConvertError extends Error {
+  constructor(
+    message: string,
+    readonly code?: 'incomplete-file',
+    readonly params?: Record<string, number>
+  ) {
+    super(message)
+    this.name = 'ConvertError'
+  }
+}
+
+/**
+ * 检查 mp3 的 ID3v2 标签是否声称了超出文件长度的音频起点。
+ * 下载中断、导出未完成的 mp3 常如此，ffmpeg 会报
+ * “Failed to read frame size: Could not seek to N”或“Invalid data found”
+ */
+async function inspectMp3Truncation(file: File): Promise<number> {
+  const head = new Uint8Array(await file.slice(0, 10).arrayBuffer())
+  if (head.length < 10 || head[0] !== 0x49 || head[1] !== 0x44 || head[2] !== 0x33) return 0
+  // ID3v2 长度用 4 个 syncsafe 字节表示，每字节仅低 7 位有效
+  const tagSize =
+    ((head[6] & 0x7f) << 21) | ((head[7] & 0x7f) << 14) | ((head[8] & 0x7f) << 7) | (head[9] & 0x7f)
+  const audioStart = tagSize + 10
+  return audioStart >= file.size ? audioStart : 0
+}
+
 /**
  * 应用磁带滤镜链并转码为 192k MP3，
- * 与仓库 convert_cassette_*.sh 中的 ffmpeg 命令一致
+ * 与仓库 convert_cassette_*.sh 中的 ffmpeg 命令一致。
+ * tolerant 为真时放宽探测范围并忽略可修复的码流错误，给残缺文件一次机会
  */
 async function runConvert(
   file: File,
   filterComplex: string,
-  onProgress: (ratio: number) => void
+  onProgress: (ratio: number) => void,
+  tolerant = false
 ): Promise<ConvertResult> {
   const ff = await getFFmpeg()
   recentLogs.length = 0
@@ -109,7 +138,12 @@ async function runConvert(
   const inputName = ACCEPTED_EXT.includes(rawExt) ? `input.${rawExt}` : 'input'
   const outputName = 'output.mp3'
 
-  await ff.writeFile(inputName, await fetchFile(file))
+  const input = await fetchFile(file)
+  // 写入字节数必须与文件一致，否则 ffmpeg 会把“读不完整”误报成容器损坏
+  if (input.byteLength !== file.size) {
+    throw new Error(`文件读取不完整（${input.byteLength}/${file.size} 字节）`)
+  }
+  await ff.writeFile(inputName, input)
 
   const progressHandler = ({ progress }: { progress: number }) => {
     onProgress(Math.max(0, Math.min(1, progress)))
@@ -118,6 +152,7 @@ async function runConvert(
 
   try {
     const code = await ff.exec([
+      ...(tolerant ? ['-err_detect', 'ignore_err', '-probesize', '50M', '-analyzeduration', '100M'] : []),
       '-i', inputName,
       '-filter_complex', filterComplex,
       '-map', '[out]',
@@ -144,24 +179,33 @@ async function runConvert(
 
 /**
  * 转换入口：core 一旦 Aborted，实例内存即不可再用，
- * 因此首次失败后重建引擎重试一次，避免用户遇到“必须刷新页面”的卡死状态
+ * 因此首次失败后重建引擎、改用宽容参数重试一次，
+ * 避免用户遇到“必须刷新页面”的卡死状态
  */
 export async function convertWithTape(
   file: File,
   filterComplex: string,
   onProgress: (ratio: number) => void
 ): Promise<ConvertResult> {
+  // 音频起点超出文件末尾是确定性损坏，直接拦下，不必白跑两遍转换
+  const audioStart = await inspectMp3Truncation(file).catch(() => 0)
+  if (audioStart) {
+    throw new ConvertError('音频数据不完整', 'incomplete-file', {
+      start: audioStart,
+      size: file.size,
+    })
+  }
   try {
     return await runConvert(file, filterComplex, onProgress)
   } catch (firstError) {
-    console.warn('[ffmpeg] 首次转换失败，重建引擎后重试', firstError)
+    console.warn('[ffmpeg] 首次转换失败，重建引擎后宽容重试', firstError)
     resetFFmpeg()
     onProgress(0)
     try {
-      return await runConvert(file, filterComplex, onProgress)
+      return await runConvert(file, filterComplex, onProgress, true)
     } catch (retryError) {
       const message = retryError instanceof Error ? retryError.message : String(retryError)
-      throw new Error(reasonFromLogs() || message)
+      throw new ConvertError(reasonFromLogs() || message)
     }
   }
 }

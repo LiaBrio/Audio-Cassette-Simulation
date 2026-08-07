@@ -34,6 +34,8 @@ export default {
     hint: 'Please upload an audio file above first',
     failed: 'Conversion failed, please try again',
     failedReason: 'Conversion failed: {{reason}}',
+    failedIncomplete:
+      'This file has incomplete audio data: its tag claims audio starts at byte {{start}}, but the file is only {{size}} bytes. Please re-download or re-export the audio and try again.',
   },
   player: {
     listening: 'Now listening',
