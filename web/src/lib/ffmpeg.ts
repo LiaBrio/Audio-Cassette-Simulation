@@ -124,12 +124,14 @@ async function inspectMp3Truncation(file: File): Promise<number> {
  * 应用磁带滤镜链并转码为 192k MP3，
  * 与仓库 convert_cassette_*.sh 中的 ffmpeg 命令一致。
  * tolerant 为真时放宽探测范围并忽略可修复的码流错误，给残缺文件一次机会
+ * safe 为真时用 -q:a 9（CBR）替代 -b:a 192k（VBR），绕过 LAME psymodel 的断言崩溃
  */
 async function runConvert(
   file: File,
   filterComplex: string,
   onProgress: (ratio: number) => void,
-  tolerant = false
+  tolerant = false,
+  safe = false
 ): Promise<ConvertResult> {
   const ff = await getFFmpeg()
   recentLogs.length = 0
@@ -139,7 +141,7 @@ async function runConvert(
   const outputName = 'output.mp3'
 
   const input = await fetchFile(file)
-  // 写入字节数必须与文件一致，否则 ffmpeg 会把“读不完整”误报成容器损坏
+  // 写入字节数必须与文件一致，否则 ffmpeg 会把"读不完整"误报成容器损坏
   if (input.byteLength !== file.size) {
     throw new Error(`文件读取不完整（${input.byteLength}/${file.size} 字节）`)
   }
@@ -157,7 +159,7 @@ async function runConvert(
       '-filter_complex', filterComplex,
       '-map', '[out]',
       '-c:a', 'libmp3lame',
-      '-b:a', '192k',
+      ...(safe ? ['-q:a', '9'] : ['-b:a', '192k']),
       outputName,
     ])
     if (code !== 0) {
@@ -179,15 +181,15 @@ async function runConvert(
 
 /**
  * 转换入口：core 一旦 Aborted，实例内存即不可再用，
- * 因此首次失败后重建引擎、改用宽容参数重试一次，
- * 避免用户遇到“必须刷新页面”的卡死状态
+ * 因此失败后重建引擎并逐步放宽策略重试，避免用户遇到"必须刷新页面"的卡死状态
+ * 策略梯度：标准 → 宽容（忽略可修复码流错误）→ 安全（-q:a 9 绕过 LAME psymodel 断言崩溃）
  */
 export async function convertWithTape(
   file: File,
   filterComplex: string,
   onProgress: (ratio: number) => void
 ): Promise<ConvertResult> {
-  // 音频起点超出文件末尾是确定性损坏，直接拦下，不必白跑两遍转换
+  // 音频起点超出文件末尾是确定性损坏，直接拦下，不必白跑重试
   const audioStart = await inspectMp3Truncation(file).catch(() => 0)
   if (audioStart) {
     throw new ConvertError('音频数据不完整', 'incomplete-file', {
@@ -195,17 +197,30 @@ export async function convertWithTape(
       size: file.size,
     })
   }
-  try {
-    return await runConvert(file, filterComplex, onProgress)
-  } catch (firstError) {
-    console.warn('[ffmpeg] 首次转换失败，重建引擎后宽容重试', firstError)
-    resetFFmpeg()
-    onProgress(0)
+
+  const strategies: Array<{ name: string; tolerant: boolean; safe: boolean }> = [
+    { name: '标准', tolerant: false, safe: false },
+    { name: '宽容', tolerant: true, safe: false },
+    { name: '安全（CBR）', tolerant: false, safe: true },
+  ]
+
+  let lastError: unknown
+  for (let i = 0; i < strategies.length; i++) {
+    const s = strategies[i]
     try {
-      return await runConvert(file, filterComplex, onProgress, true)
-    } catch (retryError) {
-      const message = retryError instanceof Error ? retryError.message : String(retryError)
-      throw new ConvertError(reasonFromLogs() || message)
+      return await runConvert(file, filterComplex, onProgress, s.tolerant, s.safe)
+    } catch (err) {
+      lastError = err
+      // 标准失败后重建引擎；宽容与安全策略复用同一实例即可
+      if (i === 0) {
+        console.warn(`[ffmpeg] ${s.name}失败，重建引擎后切换${strategies[i + 1]?.name ?? ''}重试`, err)
+        resetFFmpeg()
+        onProgress(0)
+      } else {
+        console.warn(`[ffmpeg] ${s.name}失败，切换${strategies[i + 1]?.name ?? ''}重试`, err)
+      }
     }
   }
+  const message = lastError instanceof Error ? lastError.message : String(lastError)
+  throw new ConvertError(reasonFromLogs() || message)
 }
