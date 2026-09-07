@@ -257,7 +257,7 @@ export default function App() {
       </header>
 
       {/* 广告位 1：页面顶部，英雄区下方 */}
-      <AdUnit slot="1234567890" className="ad-banner" />
+      <AdUnit slot="6346432361" className="ad-banner" />
 
       <main>
         <section className="step">
@@ -333,12 +333,12 @@ export default function App() {
               downloadName={downloadName}
             />
             {/* 广告位 3：转换结果下方 */}
-            <AdUnit slot="1122334455" className="ad-banner" />
+            <AdUnit slot="6346432361" className="ad-banner" />
           </section>
         )}
 
         {/* 广告位 2：内容底部，FAQ 之前 */}
-        <AdUnit slot="0987654321" className="ad-banner" />
+        <AdUnit slot="6346432361" className="ad-banner" />
 
         <InfoSections />
       </main>
