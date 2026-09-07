@@ -9,6 +9,7 @@ import StaticPage from './components/StaticPage'
 import { TAPE_PRESETS } from './presets'
 import { ConvertError, convertWithTape, getFFmpeg, resetFFmpeg } from './lib/ffmpeg'
 import { applySeo } from './lib/seo'
+import AdUnit from './components/AdUnit'
 
 type EngineState = 'loading' | 'ready' | 'error'
 type ConvertState = 'idle' | 'converting' | 'done' | 'error'
@@ -255,6 +256,9 @@ export default function App() {
         </div>
       </header>
 
+      {/* 广告位 1：页面顶部，英雄区下方 */}
+      <AdUnit slot="1234567890" className="ad-banner" />
+
       <main>
         <section className="step">
           <h2 className="step-title">
@@ -328,8 +332,13 @@ export default function App() {
               tapeName={resultPreset.name}
               downloadName={downloadName}
             />
+            {/* 广告位 3：转换结果下方 */}
+            <AdUnit slot="1122334455" className="ad-banner" />
           </section>
         )}
+
+        {/* 广告位 2：内容底部，FAQ 之前 */}
+        <AdUnit slot="0987654321" className="ad-banner" />
 
         <InfoSections />
       </main>

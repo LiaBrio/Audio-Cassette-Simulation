@@ -848,3 +848,31 @@ body {
     text-align: center;
   }
 }
+
+/* AdSense 广告单元 */
+.ad-banner {
+  margin: 24px auto;
+  max-width: 728px;
+  min-height: 90px;
+  background: var(--bg-card);
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  font-size: 12px;
+  overflow: hidden;
+}
+
+.ad-banner:empty::before {
+  content: 'Advertisement';
+  opacity: 0.4;
+}
+
+@media (max-width: 768px) {
+  .ad-banner {
+    margin: 16px 12px;
+    min-height: 60px;
+  }
+}
